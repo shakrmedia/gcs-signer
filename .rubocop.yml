@@ -1,0 +1,8 @@
+AllCops:
+  TargetRubyVersion: 2.3
+
+Style/SignalException:
+  EnforcedStyle: semantic
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
