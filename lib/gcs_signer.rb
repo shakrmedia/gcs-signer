@@ -10,7 +10,7 @@ require "json"
 #  signer.sign "your-bucket", "object/name"
 #  # => "https://storage.googleapis.com/your-bucket/object/name?..."
 class GcsSigner
-  VERSION = "0.1.0"
+  VERSION = "0.2.0"
 
   # gcs-signer requires credential that can access to GCS.
   # [path] the path of the service_account json file.
