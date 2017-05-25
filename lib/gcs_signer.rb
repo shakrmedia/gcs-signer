@@ -23,7 +23,6 @@ class GcsSigner
     json_string ||= File.read(path) unless path.nil?
     json_string = look_for_environment_variables if json_string.nil?
 
-
     fail AuthError, "No credentials given." if json_string.nil?
     @credentials = JSON.parse(json_string)
     @key = OpenSSL::PKey::RSA.new(@credentials["private_key"])
