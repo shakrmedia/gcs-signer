@@ -114,9 +114,14 @@ class GcsSigner
 
   # Escapes and generates query string for actual result.
   def query_for_signed_url(signature, options)
-    URI.encode_www_form GoogleAccessId: options[:google_access_id],
-                        Expires: options[:expires].to_i,
-                        Signature: Base64.strict_encode64(signature)
+    query = {
+      "GoogleAccessId" => options[:google_access_id],
+      "Expires" => options[:expires].to_i,
+      "Signature" => Base64.strict_encode64(signature),
+      "response-content-disposition" => options[:response_content_disposition]
+    }.reject { |_, v| v.nil? }
+
+    URI.encode_www_form query
   end
 
   # raised When GcsSigner could not find service_account JSON file.
