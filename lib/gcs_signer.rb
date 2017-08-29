@@ -37,7 +37,12 @@ class GcsSigner
   # Variable options are available:
   # [expires] Time(stamp in UTC) when the signed url expires.
   # [valid_for] ...or how much seconds is the signed url available.
-  # If you don't set those values, it will set to 300 seconds by default.
+  # [google_access_id] Just in case if you want to change \+GoogleAccessId+
+  # [response_content_disposition] Content-Disposition of the signed URL.
+  # [response_content_type] Content-Type of the signed URL.
+  #
+  # If you set neither \+expires+ nor \+valid_for+,
+  # it will set to 300 seconds by default.
   #
   #  # default is 5 minutes
   #  signer.sign_url("bucket-name", "path/to/file")
@@ -56,15 +61,19 @@ class GcsSigner
   # like \+method+, \+md5+, and \+content_type+. See:
   # https://cloud.google.com/storage/docs/access-control/signed-urls
   #
-  # Just in case if you want to change \+GoogleAccessId+ in the signed url,
-  # You can set \+google_access_id+ as an option.
   def sign_url(bucket, object_name, options = {})
     options = apply_default_options(options)
 
-    url = URI.join @gcs_host,
-                   URI.escape("/#{bucket}/"), URI.escape(object_name)
-    signature = sign string_that_will_be_signed(url, options)
-    url.query = query_for_signed_url(signature, options)
+    url = URI.join(
+      @gcs_host,
+      URI.escape("/#{bucket}/"), URI.escape(object_name)
+    )
+
+    url.query = query_for_signed_url(
+      sign(string_that_will_be_signed(url, options)),
+      options
+    )
+
     url.to_s
   end
 
@@ -118,10 +127,11 @@ class GcsSigner
       "GoogleAccessId" => options[:google_access_id],
       "Expires" => options[:expires].to_i,
       "Signature" => Base64.strict_encode64(signature),
-      "response-content-disposition" => options[:response_content_disposition]
+      "response-content-disposition" => options[:response_content_disposition],
+      "response-content-type" => options[:response_content_type]
     }.reject { |_, v| v.nil? }
 
-    URI.encode_www_form query
+    URI.encode_www_form(query)
   end
 
   # raised When GcsSigner could not find service_account JSON file.
