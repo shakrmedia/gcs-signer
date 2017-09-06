@@ -15,11 +15,11 @@ class GcsSigner
   # gcs-signer requires credential that can access to GCS.
   # [path] the path of the service_account json file.
   # [json_string] ...or the content of the service_account json file.
-  # [gcs_host] Custom GCS host when signing a url.
+  # [gcs_url] Custom GCS url when signing a url.
   #
   # or if you also use \+google-cloud+ gem. you can authenticate
   # using environment variable that uses.
-  def initialize(path: nil, json_string: nil, gcs_host: nil)
+  def initialize(path: nil, json_string: nil, gcs_url: nil)
     json_string ||= File.read(path) unless path.nil?
     json_string = look_for_environment_variables if json_string.nil?
 
@@ -27,7 +27,7 @@ class GcsSigner
     @credentials = JSON.parse(json_string)
     @key = OpenSSL::PKey::RSA.new(@credentials["private_key"])
 
-    @gcs_host = gcs_host || "https://storage.googleapis.com"
+    @gcs_url = gcs_url || "https://storage.googleapis.com"
   end
 
   # @return [String] Signed url
@@ -65,7 +65,7 @@ class GcsSigner
     options = apply_default_options(options)
 
     url = URI.join(
-      @gcs_host,
+      @gcs_url,
       URI.escape("/#{bucket}/"), URI.escape(object_name)
     )
 
