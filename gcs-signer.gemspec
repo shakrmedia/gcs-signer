@@ -5,8 +5,8 @@ Gem::Specification.new do |s|
   s.name = "gcs-signer"
   s.version = GcsSigner::VERSION
   s.version = "#{s.version}-#{ENV['TRAVIS_BUILD_NUMBER']}" if ENV["TRAVIS"]
-  s.authors = ["Sangwon Yi", "Minku Lee"]
-  s.email = ["sangwon@sha.kr", "minku@sha.kr"]
+  s.authors = ["Sangwon Yi", "Minku Lee", "Larry Kim"]
+  s.email = ["sangwon@sha.kr", "minku@sha.kr", "larry@sha.kr"]
   s.files = Dir["{lib}/**/*", "README.md"]
 
   s.license = "MIT"
