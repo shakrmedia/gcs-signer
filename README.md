@@ -14,6 +14,10 @@ Simple signed URL generator for Google Cloud Storage.
 gem install gcs-signer
 ```
 
+```ruby
+require 'gcs-signer'
+```
+
 ## Usage
 
 If you already configured `GOOGLE_CLOUD_KEYFILE` or `GOOGLE_CLOUD_KEYFILE_JSON` for google-cloud-ruby gem, just
@@ -43,11 +47,11 @@ signer.sign_url "bucket-name", "object-name",
 signer.sign_url "bucket-name", "object_name", valid_for: 600
 
 # If you use AcriveSupport in your project, you can also do some magic like:
-signer.sign_url "buekct", "object", valid_for: 45.minutes
+signer.sign_url "bucket", "object", valid_for: 45.minutes
 
 # See https://cloud.google.com/storage/docs/access-control/signed-urls
 # for other avaliable options.
-signer.sign_url "buekct", "object", google_access_id: "sangwon@sha.kr",
+signer.sign_url "bucket", "object", google_access_id: "sangwon@sha.kr",
                 method: "PUT", content_type: "text/plain",
                 md5: "beefbeef..."
 ```
