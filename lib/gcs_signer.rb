@@ -1,8 +1,10 @@
 # frozen_string_literal: true
-require "uri"
-require "openssl"
+
 require "base64"
+require "erb"
 require "json"
+require "openssl"
+require "uri"
 
 # Creates signed_url for a file on Google Cloud Storage.
 #
@@ -66,7 +68,7 @@ class GcsSigner
 
     url = URI.join(
       @gcs_url,
-      URI.escape("/#{bucket}/"), URI.escape(object_name)
+      ERB::Util.url_encode("/#{bucket}/"), ERB::Util.url_encode(object_name)
     )
 
     url.query = query_for_signed_url(
