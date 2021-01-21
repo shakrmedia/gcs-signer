@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "./lib/gcs_signer"
+require_relative "./lib/gcs_signer/version"
 
 Gem::Specification.new do |s|
   s.name = "gcs-signer"
@@ -23,6 +23,8 @@ Gem::Specification.new do |s|
 DESC
   s.required_ruby_version = "~> 2.3"
   s.homepage = "https://github.com/shakrmedia/gcs-signer"
+
+  s.add_dependency "addressable", "~> 2.7"
 
   s.add_development_dependency "pry", "~> 0.11"
   s.add_development_dependency "rake", "~> 12.3"

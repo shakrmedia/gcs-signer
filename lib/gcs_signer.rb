@@ -11,7 +11,6 @@ require "addressable"
 #  signer.sign "your-bucket", "object/name"
 #  # => "https://storage.googleapis.com/your-bucket/object/name?..."
 class GcsSigner
-  VERSION = "0.3.0"
   ENV_KEYFILE_PATH = ENV["GOOGLE_CLOUD_KEYFILE"] || ENV["GOOGLE_APPLICATION_CREDENTIALS"]
   ENV_KEYFILE_JSON = ENV["GOOGLE_CLOUD_KEYFILE_JSON"]
   DEFAULT_GCS_URL = Addressable::URI.new(
