@@ -16,10 +16,10 @@ Gem::Specification.new do |s|
   s.files = Dir["{lib}/**/*", "README.md"]
 
   s.license = "MIT"
-  s.summary = "Simple signed URL generator for Google Cloud Storage."
+  s.summary = "Simple URL signer for Google Cloud Storage."
   s.description = <<DESC
   Simple signed URL generator for Google Cloud Storage.
-  No additional gems and API requests required to generate signed URL.
+  No API requests required to generate signed URL.
 DESC
   s.required_ruby_version = "> 2.6"
   s.homepage = "https://github.com/shakrmedia/gcs-signer"
