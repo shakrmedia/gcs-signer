@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
-require "base64"
-require "erb"
 require "json"
+require "base64"
 require "openssl"
-require "uri"
+require "addressable"
 
 # Creates signed_url for a file on Google Cloud Storage.
 #
@@ -13,33 +12,36 @@ require "uri"
 #  # => "https://storage.googleapis.com/your-bucket/object/name?..."
 class GcsSigner
   VERSION = "0.3.0"
+  ENV_KEYFILE_PATH = ENV["GOOGLE_CLOUD_KEYFILE"] || ENV["GOOGLE_APPLICATION_CREDENTIALS"]
+  ENV_KEYFILE_JSON = ENV["GOOGLE_CLOUD_KEYFILE_JSON"]
+  DEFAULT_GCS_URL = Addressable::URI.new(
+    scheme: "https", host: "storage.googleapis.com"
+  ).freeze
 
   # gcs-signer requires credential that can access to GCS.
   # [path] the path of the service_account json file.
-  # [json_string] ...or the content of the service_account json file.
+  # [keyfile_string] ...or the content of the service_account json file.
   # [gcs_url] Custom GCS url when signing a url.
   #
   # or if you also use \+google-cloud+ gem. you can authenticate
   # using environment variable that uses.
-  def initialize(path: nil, json_string: nil, gcs_url: nil)
-    json_string ||= File.read(path) unless path.nil?
-    json_string = look_for_environment_variables if json_string.nil?
+  def initialize(path: nil, keyfile_json: nil, gcs_url: DEFAULT_GCS_URL)
+    keyfile_json ||= path.nil? ? look_for_environment_variables : File.read(path)
+    fail AuthError, "No credentials given." if keyfile_json.nil?
 
-    fail AuthError, "No credentials given." if json_string.nil?
-    @credentials = JSON.parse(json_string)
+    @credentials = JSON.parse(keyfile_json)
     @key = OpenSSL::PKey::RSA.new(@credentials["private_key"])
-
-    @gcs_url = gcs_url || "https://storage.googleapis.com"
+    @gcs_url = Addressable::URI.parse(gcs_url)
   end
 
   # @return [String] Signed url
   # Generates signed url.
   # [bucket] the name of the Cloud Storage bucket that contains the object.
-  # [object_name] the name of the object for signed url..
+  # [key] the name of the object for signed url.
   # Variable options are available:
+  # [version] signature version; \+:v2+ or \+:v4+
   # [expires] Time(stamp in UTC) when the signed url expires.
   # [valid_for] ...or how much seconds is the signed url available.
-  # [google_access_id] Just in case if you want to change \+GoogleAccessId+
   # [response_content_disposition] Content-Disposition of the signed URL.
   # [response_content_type] Content-Type of the signed URL.
   #
@@ -59,23 +61,57 @@ class GcsSigner
   #  # If you use ActiveSupport, you can also do some magic.
   #  signer.sign_url("bucket", "path/to/file", valid_for: 40.minutes)
   #
-  # For details information of another options,
-  # like \+method+, \+md5+, and \+content_type+. See:
-  # https://cloud.google.com/storage/docs/access-control/signed-urls
-  #
-  def sign_url(bucket, object_name, options = {})
-    options = apply_default_options(options)
+  def sign_url(bucket, key, version: :v2, **options)
+    case version
+    when :v2
+      sign_url_v2(bucket, key, **options)
+    when :v4
+      sign_url_v4(bucket, key, **options)
+    else
+      fail ArgumentError, "Version not supported: #{version.inspect}"
+    end
+  end
 
-    url = URI.join(
-      @gcs_url,
-      ERB::Util.url_encode("/#{bucket}/"), ERB::Util.url_encode(object_name)
-    )
+  def sign_url_v2(bucket, key, method: "GET", valid_for: 300, **options)
+    url = @gcs_url + "./#{request_path(bucket, key)}"
+    expires_at = options[:expires] || Time.now.utc.to_i + valid_for.to_i
+    sign_payload = [method, "", "", expires_at.to_i, url.path].join("\n")
 
-    url.query = query_for_signed_url(
-      sign(string_that_will_be_signed(url, options)),
-      options
-    )
+    url.query_values = (options[:params] || {}).merge(
+      "GoogleAccessId" => @credentials["client_email"],
+      "Expires" => expires_at.to_i,
+      "Signature" => sign_v2(sign_payload),
+      "response-content-disposition" => options[:response_content_disposition],
+      "response-content-type" => options[:response_content_type]
+    ).compact
 
+    url.to_s
+  end
+
+  def sign_url_v4(bucket, key, method: "GET", headers: {}, **options)
+    url = @gcs_url + "./#{request_path(bucket, key)}"
+    time = Time.now.utc
+
+    request_headers = headers.merge(host: @gcs_url.host).transform_keys(&:downcase)
+    signed_headers = request_headers.keys.sort.join(";")
+    scopes = [time.strftime("%Y%m%d"), "auto", "storage", "goog4_request"].join("/")
+
+    query_params = build_query_params(time, scopes, **options)
+                   .merge("X-Goog-SignedHeaders" => signed_headers)
+
+    canonical_request = [
+      method, url.path.to_s,
+      Addressable::URI.form_encode(query_params, true),
+      *request_headers.sort.map { |header| header.join(":") },
+      "", signed_headers, "UNSIGNED-PAYLOAD"
+    ].join("\n")
+
+    sign_payload = [
+      "GOOG4-RSA-SHA256", time.strftime("%Y%m%dT%H%M%SZ"), scopes,
+      Digest::SHA256.hexdigest(canonical_request)
+    ].join("\n")
+
+    url.query_values = query_params.merge("X-Goog-Signature" => sign_v4(sign_payload))
     url.to_s
   end
 
@@ -90,53 +126,50 @@ class GcsSigner
 
   private
 
-  # Look for environment variable which stores service_account.
   def look_for_environment_variables
-    unless ENV["GOOGLE_CLOUD_KEYFILE"].nil?
-      return File.read(ENV["GOOGLE_CLOUD_KEYFILE"])
-    end
+    ENV_KEYFILE_PATH.nil? ? ENV_KEYFILE_JSON : File.read(ENV_KEYFILE_PATH)
+  end
 
-    ENV["GOOGLE_CLOUD_KEYFILE_JSON"]
+  def request_path(bucket, object)
+    [
+      bucket,
+      Addressable::URI.encode_component(
+        object, Addressable::URI::CharacterClasses::UNRESERVED
+      )
+    ].join("/")
+  end
+
+  def sign_v2(string)
+    Base64.strict_encode64(sign(string))
+  end
+
+  def sign_v4(string)
+    sign(string).unpack1("H*")
   end
 
   # Signs the string with the given private key.
   def sign(string)
-    @key.sign OpenSSL::Digest::SHA256.new, string
+    @key.sign(OpenSSL::Digest.new("SHA256"), string)
   end
 
-  def apply_default_options(options)
-    {
-      method: "GET", content_md5: nil,
-      content_type: nil,
-      expires: Time.now.utc.to_i + (options[:valid_for] || 300).to_i,
-      google_access_id: @credentials["client_email"]
-    }.merge(options)
-  end
+  # only used in v4
+  def build_query_params(time, scopes, valid_for: 300, params: {}, **options)
+    goog_expires = if options[:expires]
+                     options[:expires].to_i - time.to_i
+                   else
+                     valid_for.to_i
+                   end.clamp(0, 604_800)
 
-  def string_that_will_be_signed(url, options)
-    [
-      options[:method],
-      options[:content_md5],
-      options[:content_type],
-      options[:expires].to_i,
-      url.path
-    ].join "\n"
-  end
-
-  # Escapes and generates query string for actual result.
-  def query_for_signed_url(signature, options)
-    query = {
-      "GoogleAccessId" => options[:google_access_id],
-      "Expires" => options[:expires].to_i,
-      "Signature" => Base64.strict_encode64(signature),
+    params.merge(
+      "X-Goog-Algorithm" => "GOOG4-RSA-SHA256",
+      "X-Goog-Credential" => [@credentials["client_email"], scopes].join("/"),
+      "X-Goog-Date" => time.strftime("%Y%m%dT%H%M%SZ"),
+      "X-Goog-Expires" => goog_expires,
       "response-content-disposition" => options[:response_content_disposition],
       "response-content-type" => options[:response_content_type]
-    }.reject { |_, v| v.nil? }
-
-    URI.encode_www_form(query)
+    ).compact
   end
 
   # raised When GcsSigner could not find service_account JSON file.
-  class AuthError < StandardError
-  end
+  class AuthError < StandardError; end
 end
