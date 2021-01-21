@@ -21,12 +21,12 @@ Gem::Specification.new do |s|
   Simple signed URL generator for Google Cloud Storage.
   No additional gems and API requests required to generate signed URL.
 DESC
-  s.required_ruby_version = "~> 2.3"
+  s.required_ruby_version = "> 2.6"
   s.homepage = "https://github.com/shakrmedia/gcs-signer"
 
   s.add_dependency "addressable", "~> 2.7"
 
   s.add_development_dependency "pry", "~> 0.11"
   s.add_development_dependency "rake", "~> 12.3"
-  s.add_development_dependency "rubocop", "~> 0.57.2"
+  s.add_development_dependency "rubocop", "~> 1.0"
 end

@@ -1,8 +1,16 @@
 AllCops:
-  TargetRubyVersion: 2.3
+  TargetRubyVersion: 2.6
+  NewCops: enable
+  SuggestExtensions: false
 
 Style/SignalException:
   EnforcedStyle: semantic
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
+
+Metrics/AbcSize:
+  Max: 30
+
+Metrics/MethodLength:
+  Max: 20
