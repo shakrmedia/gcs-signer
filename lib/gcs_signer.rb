@@ -95,12 +95,10 @@ class GcsSigner
     signed_headers = request_headers.keys.sort.join(";")
     scopes = [time.strftime("%Y%m%d"), "auto", "storage", "goog4_request"].join("/")
 
-    query_params = build_query_params(time, scopes, **options)
-                   .merge("X-Goog-SignedHeaders" => signed_headers)
+    url.query_values = build_query_params(time, scopes, signed_headers, **options)
 
     canonical_request = [
-      method, url.path.to_s,
-      Addressable::URI.form_encode(query_params, true),
+      method, url.path.to_s, url.query,
       *request_headers.sort.map { |header| header.join(":") },
       "", signed_headers, "UNSIGNED-PAYLOAD"
     ].join("\n")
@@ -110,7 +108,7 @@ class GcsSigner
       Digest::SHA256.hexdigest(canonical_request)
     ].join("\n")
 
-    url.query_values = query_params.merge("X-Goog-Signature" => sign_v4(sign_payload))
+    url.query += "&X-Goog-Signature=#{sign_v4(sign_payload)}"
     url.to_s
   end
 
@@ -152,21 +150,22 @@ class GcsSigner
   end
 
   # only used in v4
-  def build_query_params(time, scopes, valid_for: 300, params: {}, **options)
+  def build_query_params(time, scopes, signed_headers, valid_for: 300, **options)
     goog_expires = if options[:expires]
                      options[:expires].to_i - time.to_i
                    else
                      valid_for.to_i
                    end.clamp(0, 604_800)
 
-    params.merge(
+    (options[:params] || {}).merge(
       "X-Goog-Algorithm" => "GOOG4-RSA-SHA256",
       "X-Goog-Credential" => [@credentials["client_email"], scopes].join("/"),
       "X-Goog-Date" => time.strftime("%Y%m%dT%H%M%SZ"),
       "X-Goog-Expires" => goog_expires,
+      "X-Goog-SignedHeaders" => signed_headers,
       "response-content-disposition" => options[:response_content_disposition],
       "response-content-type" => options[:response_content_type]
-    ).compact
+    ).compact.sort
   end
 
   # raised When GcsSigner could not find service_account JSON file.
