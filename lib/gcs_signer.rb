@@ -129,11 +129,10 @@ class GcsSigner
 
   def request_path(bucket, object)
     [
-      bucket,
-      Addressable::URI.encode_component(
-        object, Addressable::URI::CharacterClasses::UNRESERVED
-      )
-    ].join("/")
+      bucket, *object.split("/")
+    ].map do |str|
+      Addressable::URI.encode_component(str, Addressable::URI::CharacterClasses::UNRESERVED)
+    end.join("/")
   end
 
   def sign_v2(string)
